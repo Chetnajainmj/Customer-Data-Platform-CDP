@@ -12,6 +12,7 @@
 CREATE TABLE party_type (
     party_type_id VARCHAR(20) PRIMARY KEY,
     parent_type_id VARCHAR(20) COMMENT 'For hierarchical types (e.g. COMPANY is a child of PARTY_GROUP)',
+    external_id VARCHAR(20),
     has_table BOOLEAN COMMENT 'True if there is an extended table for this type',
     FOREIGN KEY (parent_type_id) REFERENCES party_type(party_type_id)
 );
