@@ -99,6 +99,7 @@ CREATE TABLE party_contact_mech (
     contact_mech_id VARCHAR(20),
     from_date DATETIME COMMENT 'When this relationship started',
     thru_date DATETIME COMMENT 'When this relationship ended (Null means active)',
+    verified BOOLEAN,
     PRIMARY KEY (party_id, contact_mech_id, from_date),
     FOREIGN KEY (party_id) REFERENCES party(party_id),
     FOREIGN KEY (contact_mech_id) REFERENCES contact_mech(contact_mech_id)
