@@ -484,15 +484,196 @@ FUNCTION deleteCustomer(String partyId) {
         RETURN ERROR "Deletion failed: " + e.getMessage()
     }
 }
+5. Service for Shopify Customer API Integration
+<service verb="sync" noun="ShopifyCustomer">
+
+    Step 1: Call Shopify Customer API
+
+        response = RESTClient
+            .uri(shopifyUrl)
+            .method(GET)
+            .header("X-Shopify-Access-Token", token)
+            .call()
+
+        IF response.statusCode != 200
+            RETURN Error("Unable to retrieve customers")
+
+        customer = response.json.customer
 
 
+    Step 2: Validate Required Fields
+
+        IF customer.id IS EMPTY
+            RETURN Error("Customer ID missing")
+
+        IF customer.first_name IS EMPTY
+            RETURN Error("First Name missing")
+
+        IF customer.last_name IS EMPTY
+            RETURN Error("Last Name missing")
+
+        IF customer.email EXISTS
+            Validate Email Format
+
+        IF customer.phone EXISTS
+            Validate Phone Format
 
 
+    Step 3: Find Existing Party
+
+        party = ec.entity.find("Party")
+                  .condition("externalId", customer.id)
+                  .one()
+
+        IF party DOES NOT EXIST
+
+            party = ec.entity.makeValue("Party")
+
+            party.partyId = ec.entity.sequencedIdPrimary("Party")
+
+        END IF
 
 
+        party.partyTypeId = "PERSON"
+
+        party.statusId = customer.state
+
+        party.externalId = customer.id
+
+        party.createOrUpdate()
 
 
+    Step 4: Save Person
 
+        person = ec.entity.makeValue("Person")
+
+        person.partyId = party.partyId
+
+        person.firstName = customer.first_name
+
+        person.lastName = customer.last_name
+
+        person.createOrUpdate()
+
+
+    Step 5: Save Email Contact
+
+        IF customer.email EXISTS
+
+            contactMech = Find ContactMech by Email
+
+            IF NOT FOUND
+
+                contactMech = ec.entity.makeValue("ContactMech")
+
+                contactMech.contactMechId =
+                    ec.entity.sequencedIdPrimary("ContactMech")
+
+            END IF
+
+            contactMech.contactMechTypeId = "EMAIL_ADDRESS"
+
+            contactMech.infoString = customer.email
+
+            contactMech.createOrUpdate()
+
+
+            partyContact = ec.entity.makeValue("PartyContactMech")
+
+            partyContact.partyId = party.partyId
+
+            partyContact.contactMechId = contactMech.contactMechId
+
+            partyContact.fromDate = NOW
+
+            partyContact.verified = customer.verified_email
+
+            partyContact.createOrUpdate()
+
+        END IF
+
+
+    Step 6: Save Phone
+
+        IF customer.phone EXISTS
+
+            telecom = Find TelecomNumber
+
+            IF NOT FOUND
+
+                telecom = ec.entity.makeValue("TelecomNumber")
+
+                telecom.contactMechId =
+                    ec.entity.sequencedIdPrimary("ContactMech")
+
+            END IF
+
+            telecom.countryCode =
+                ExtractCountryCode(customer.phone)
+
+            telecom.contactNumber =
+                RemoveCountryCode(customer.phone)
+
+            telecom.createOrUpdate()
+
+        END IF
+
+
+    Step 7: Save Address
+
+        IF customer.default_address EXISTS
+
+            address = customer.default_address
+
+            contactMech = New Postal ContactMech
+
+            contactMech.contactMechTypeId = "POSTAL_ADDRESS"
+
+            contactMech.createOrUpdate()
+
+
+            postal = ec.entity.makeValue("PostalAddress")
+
+            postal.contactMechId = contactMech.contactMechId
+
+            postal.address1 = address.address1
+
+            postal.address2 = address.address2
+
+            postal.city = address.city
+
+            postal.stateProvinceGeoId = address.province_code
+
+            postal.countryGeoId = address.country_code
+
+            postal.postalCode = address.zip
+
+            postal.createOrUpdate()
+
+        END IF
+
+
+    Step 8: Save Customer Preferences
+
+        savePreference(
+            party.partyId,
+            "MARKETING_OPT_IN",
+            customer.accepts_marketing)
+
+        savePreference(
+            party.partyId,
+            "EMAIL_CONSENT",
+            customer.email_marketing_consent.state)
+
+        savePreference(
+            party.partyId,
+            "SMS_CONSENT",
+            customer.sms_marketing_consent.state)
+
+
+    RETURN Success
+
+</service>
 
 
 
